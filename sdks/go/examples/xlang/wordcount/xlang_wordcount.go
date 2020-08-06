@@ -92,7 +92,7 @@ func main() {
 	external := &beam.ExternalTransform{
 		In:            []beam.PCollection{col},
 		Urn:           "beam:transforms:xlang:count",
-		ExpansionAddr: "localhost:8118",
+		ExpansionAddr: "localhost:8097",
 		Out:           []typex.FullType{outputType},
 		Bounded:       true, // TODO(pskevin): Infer this value from output PCollection(s) part of the expanded tranform
 	}

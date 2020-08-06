@@ -20,6 +20,11 @@ package universal
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+
+	"github.com/apache/beam/sdks/go/pkg/beam/core/util/protox"
+
+	"github.com/apache/beam/sdks/go/pkg/beam/artifact"
 
 	"github.com/apache/beam/sdks/go/pkg/beam"
 	"github.com/apache/beam/sdks/go/pkg/beam/core/runtime/graphx"
@@ -33,6 +38,8 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/runners/universal/runnerlib"
 	"github.com/apache/beam/sdks/go/pkg/beam/runners/vet"
 	"github.com/golang/protobuf/proto"
+
+	pipepb "github.com/apache/beam/sdks/go/pkg/beam/model/pipeline_v1"
 )
 
 func init() {
@@ -80,6 +87,42 @@ func Execute(ctx context.Context, p *beam.Pipeline) error {
 		ctx, envUrn, getEnvCfg)})
 	if err != nil {
 		return errors.WithContextf(err, "generating model pipeline")
+	}
+
+	path, err := filepath.Abs("./")
+	if err != nil {
+		panic(err)
+	}
+	for _, external := range p.ExpandedTransforms {
+		envs := external.Components.GetEnvironments()
+		for k, env := range envs {
+			if k == "go" {
+				continue
+			}
+			deps := env.GetDependencies()
+			resolvedMeta, err := artifact.Materialize(ctx, external.ExpansionAddr, deps, "", path)
+			if err != nil {
+				panic(err)
+			}
+
+			var resolved_deps []*pipepb.ArtifactInformation
+			for _, meta := range resolvedMeta {
+				full_path := filepath.Join(path, "/", meta.Name)
+				resolved_deps = append(resolved_deps,
+					&pipepb.ArtifactInformation{
+						TypeUrn: "beam:artifact:type:file:v1",
+						TypePayload: protox.MustEncode(
+							&pipepb.ArtifactFilePayload{
+								Path:   full_path,
+								Sha256: meta.Sha256,
+							},
+						),
+						RoleUrn: graphx.URNArtifactStagingTo,
+					},
+				)
+			}
+			env.Dependencies = resolved_deps
+		}
 	}
 
 	// Adding Expanded transforms to their counterparts in the Pipeline

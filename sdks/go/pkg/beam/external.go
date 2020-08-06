@@ -93,6 +93,7 @@ func TryCrossLanguage(s Scope, p *Pipeline, e *ExternalTransform) ([]PCollection
 	// TODO(pskevin): Remove these fake impulses from final Pipeline since multiple producers of the same PCollections is logically wrong
 	transforms := pipeline.Components.Transforms
 	rootTransformID := pipeline.RootTransformIds[0]
+	transform := transforms[rootTransformID]
 	for tag, id := range transforms[rootTransformID].Inputs {
 		key := fmt.Sprintf("%s_%s", "impulse", tag)
 
@@ -107,11 +108,11 @@ func TryCrossLanguage(s Scope, p *Pipeline, e *ExternalTransform) ([]PCollection
 
 		transforms[key] = impulse
 	}
-
+	delete(transforms, rootTransformID)
 	// Assembling ExpansionRequest proto
 	req := &jobpb.ExpansionRequest{
 		Components: pipeline.Components,
-		Transform:  transforms[rootTransformID],
+		Transform:  transform,
 		Namespace:  s.String(),
 	}
 
