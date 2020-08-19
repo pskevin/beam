@@ -145,13 +145,14 @@ type MultiEdge struct {
 	parent *Scope
 
 	Op               Opcode
-	DoFn             *DoFn        // ParDo
-	RestrictionCoder *coder.Coder // SplittableParDo
-	CombineFn        *CombineFn   // Combine
-	AccumCoder       *coder.Coder // Combine
-	Value            []byte       // Impulse
-	Payload          *Payload     // External
-	WindowFn         *window.Fn   // WindowInto
+	DoFn             *DoFn              // ParDo
+	RestrictionCoder *coder.Coder       // SplittableParDo
+	CombineFn        *CombineFn         // Combine
+	AccumCoder       *coder.Coder       // Combine
+	Value            []byte             // Impulse
+	External         *ExternalTransform // Current External Transforms API
+	Payload          *Payload           // Legacy External Transforms API
+	WindowFn         *window.Fn         // WindowInto
 
 	Input  []*Inbound
 	Output []*Outbound
@@ -282,26 +283,51 @@ func NewFlatten(g *Graph, s *Scope, in []*Node) (*MultiEdge, error) {
 }
 
 // NewCrossLanguage inserts a Cross-langugae External transform.
-func NewCrossLanguage(g *Graph, s *Scope, in []*Node, payload *Payload) *MultiEdge {
+func NewCrossLanguage(g *Graph, s *Scope, ext *ExternalTransform, ins []*Inbound, outs []*Outbound) (*MultiEdge, func(*Node, bool)) {
 	edge := g.NewEdge(s)
 	edge.Op = External
+	edge.External = ext
 
-	// Payload can be decoupled completely from MultiEdge after current API is implemented
-	edge.Payload = payload
-
-	for _, n := range in {
-		edge.Input = append(edge.Input, &Inbound{Kind: Main, From: n, Type: n.Type()})
+	windowingStrategy := inputWindow([]*Node{ins[0].From})
+	for _, o := range outs {
+		o.To.w = windowingStrategy
 	}
-	return edge
+
+	isBoundedUpdater := func(n *Node, bounded bool) {
+		n.bounded = bounded
+	}
+
+	edge.Input = ins
+	edge.Output = outs
+
+	return edge, isBoundedUpdater
 }
 
-// AddOutboundLinks adds Outbound links to existing MultiEdge
-// TODO(pskevin): Could be decoupled from exisiting NewExternal and used by all external transforms
-func AddOutboundLinks(g *Graph, e *MultiEdge, in []*Node, out []typex.FullType, bounded bool) {
-	for _, t := range out {
-		n := g.NewNode(t, inputWindow(in), bounded)
-		e.Output = append(e.Output, &Outbound{To: n, Type: t})
+func NewNamedInboundLinks(ins map[string]*Node) (map[string]int, []*Inbound) {
+	inputsMap := make(map[string]int)
+	var inboundLinks []*Inbound
+
+	for tag, node := range ins {
+		id := len(inboundLinks)
+		inputsMap[tag] = id
+		inboundLinks = append(inboundLinks, &Inbound{Kind: Main, From: node, Type: node.Type()})
 	}
+
+	return inputsMap, inboundLinks
+}
+
+func NewNamedOutboundLinks(g *Graph, outs map[string]typex.FullType) (map[string]int, []*Outbound) {
+	outputsMap := make(map[string]int)
+	var outboundLinks []*Outbound
+
+	for tag, fullType := range outs {
+		node := g.NewNode(fullType, nil, true)
+		id := len(outboundLinks)
+		outputsMap[tag] = id
+		outboundLinks = append(outboundLinks, &Outbound{To: node, Type: fullType})
+	}
+
+	return outputsMap, outboundLinks
 }
 
 // NewExternal inserts an External transform. The system makes no assumptions about

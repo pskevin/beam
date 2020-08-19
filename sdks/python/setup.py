@@ -201,6 +201,7 @@ REQUIRED_TEST_PACKAGES = [
 GCP_REQUIREMENTS = [
     'cachetools>=3.1.0,<4',
     'google-apitools>=0.5.31,<0.5.32',
+    'google-auth>=1.18.0,<2',
     'google-cloud-datastore>=1.7.1,<2',
     'google-cloud-pubsub>=0.39.0,<2',
     # GCP packages required by tests
@@ -262,8 +263,13 @@ python_requires = '>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*'
 
 if sys.version_info.major == 2:
   warnings.warn(
-      'You are using Apache Beam with Python 2. '
-      'New releases of Apache Beam will soon support Python 3 only.')
+      'You are using the final Apache Beam release with Python 2 support. '
+      'New releases of Apache Beam will require Python 3.6 or a newer version.')
+
+if sys.version_info.major == 3 and sys.version_info.minor == 5:
+  warnings.warn(
+      'You are using the final Apache Beam release with Python 3.5 support. '
+      'New releases of Apache Beam will require Python 3.6 or a newer version.')
 
 if sys.version_info.major == 3 and sys.version_info.minor >= 9:
   warnings.warn(
